@@ -329,6 +329,31 @@ class logsqlhandler(ihandler):
 			ON p0fs (p0f_%s)""" % (idx, idx))
 
 		self.cursor.execute("""CREATE TABLE IF NOT EXISTS
+			http (
+				id INTEGER PRIMARY KEY,
+				connection INTEGER,
+				http_method TEXT,
+				http_path TEXT,
+				http_version TEXT,
+				http_header TEXT,
+				http_useragent TEXT,
+				http_host TEXT,
+				http_xforwardedfor TEXT,
+				http_data TEXT
+				-- CONSTRAINT http_connection_fkey FOREIGN KEY (connection) REFERENCES connections (connection)
+			)""")
+
+
+		self.cursor.execute("""CREATE TABLE IF NOT EXISTS
+			reversedns (
+				id INTEGER PRIMARY KEY,
+				connection INTEGER,
+				rdns TEXT,
+				ip TEXT
+				-- CONSTRAINT reversedns_connection_fkey FOREIGN KEY (connection) REFERENCES connections (connection)
+			)""")
+
+		self.cursor.execute("""CREATE TABLE IF NOT EXISTS
 			logins (
 				login INTEGER PRIMARY KEY,
 				connection INTEGER,
@@ -522,7 +547,7 @@ class logsqlhandler(ihandler):
 
 
 		# connection index for all 
-		for idx in ["dcerpcbinds", "dcerpcrequests", "emu_profiles", "emu_services", "offers", "downloads", "p0fs", "logins", "mssql_fingerprints", "mssql_commands","mysql_commands","sip_commands"]:
+		for idx in ["dcerpcbinds", "dcerpcrequests", "emu_profiles", "emu_services", "offers", "downloads", "p0fs", "logins", "mssql_fingerprints", "mssql_commands","mysql_commands"]:
 			self.cursor.execute("""CREATE INDEX IF NOT EXISTS %s_connection_idx	ON %s (connection)""" % (idx, idx))
 
 
@@ -748,6 +773,15 @@ class logsqlhandler(ihandler):
 				( attackid, icd.genre, icd.link, icd.detail, icd.uptime, icd.tos, icd.dist, icd.nat, icd.fw))
 			self.dbh.commit()
 
+	def handle_incident_dionaea_modules_python_http(self, icd):
+		con=icd.con
+		logger.debug("HTTP")
+		if con in self.attacks:
+			attackid = self.attacks[con][1]
+			self.cursor.execute("INSERT INTO http(connection, http_method, http_path, http_version, http_header, http_useragent, http_host, http_xforwardedfor, http_data) VALUES (?,?,?,?,?,?,?,?,?)",
+				( attackid, icd.method, icd.path, icd.version, icd.header, icd.useragent, icd.host, icd.xforwardedfor, icd.data))
+			self.dbh.commit()
+
 	def handle_incident_dionaea_modules_python_smb_dcerpc_request(self, icd):
 		con=icd.con
 		if con in self.attacks:
@@ -832,6 +866,19 @@ class logsqlhandler(ihandler):
 					self.cursor.execute("INSERT INTO mysql_command_args (mysql_command, mysql_command_arg_index, mysql_command_arg_data) VALUES (?,?,?)",
 						(cmdid, i, arg))
 			self.dbh.commit()
+
+	def handle_incident_dionaea_modules_python_reversedns(self,icd):
+		logger.debug("Received reversedns to log in sqldb : %s -> %s"%(icd.ip,icd.rdns))
+		con=icd.con
+		if con in self.attacks:
+			attackid = self.attacks[con][1]
+			logger.debug('rdns : attack %s found'%(attackid))
+			self.cursor.execute("INSERT INTO reversedns (connection, ip, rdns) VALUES (?,?,?)",
+				(attackid,icd.ip,icd.rdns))
+		else:
+			logger.warning('No attack found for %s'%(icd))
+		con.unref()
+		self.dbh.commit()
 
 	def handle_incident_dionaea_modules_python_sip_command(self, icd):
 		con = icd.con

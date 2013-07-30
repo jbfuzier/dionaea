@@ -57,13 +57,6 @@ logger.setLevel(logging.DEBUG)
 global g_handlers
 
 def start():
-	logger.warn("START THE IHANDLERS")
-	for i in g_handlers:
-		method = getattr(i, "start", None)
-		if method != None:
-			method()
-
-def new():
 	global g_handlers
 	g_handlers = []
 
@@ -132,6 +125,11 @@ def new():
 	if "fail2ban" in g_dionaea.config()['modules']['python']['ihandlers']['handlers']:
 		import dionaea.fail2ban
 		g_handlers.append(dionaea.fail2ban.fail2banhandler())
+
+	if "reversedns" in g_dionaea.config()['modules']['python']['ihandlers']['handlers']:
+		import dionaea.reversedns
+		g_handlers.append(dionaea.reversedns.handler('*'))
+
 
 def stop():
 	global g_handlers

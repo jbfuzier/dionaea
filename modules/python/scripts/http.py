@@ -64,7 +64,13 @@ class httpreq:
 		for i in self.headers:
 			logger.debug(i + b":" + self.headers[i])
 
-
+	def get(self,value):
+		#logger.debug("%s | %s |%s"%(value,type(self.headers.keys()),value.lower().strip() in self.headers.keys()))
+		if value.encode() in self.headers:
+			return self.headers[value.encode()]
+		else:
+			return ""
+			
 class httpd(connection):
 	def __init__(self, proto='tcp'):
 		logger.debug("http test")
@@ -117,7 +123,19 @@ class httpd(connection):
 			data = data[soc:]
 			self.header = httpreq(header)
 			self.header.print()
-		
+			# Send http info to logsql
+			icd = incident(origin='dionaea.modules.python.http')
+			icd.con=self
+			icd.set('method',self.header.type)
+			icd.set('path',self.header.path)
+			icd.set('version',self.header.version)
+			icd.set('header',header)
+			icd.set('useragent',self.header.get("user-agent"))
+			icd.set('host',self.header.get("host"))
+			icd.set('xforwardedfor',self.header.get("x-forwarded-for"))
+			icd.set('data',data)
+			icd.report()
+
 			if self.header.type == b'GET':
 				self.handle_GET()
 				return len(data)
